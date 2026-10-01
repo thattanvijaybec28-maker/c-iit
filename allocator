@@ -1,0 +1,162 @@
+#include <stdio.h>
+#include <stddef.h>
+#include <string.h>
+#include <unistd.h>
+
+// Align all allocations to 8-byte boundaries for CPU performance
+#define ALIGNMENT 8
+#define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))
+
+// Meta-data header block for every chunk of memory we carve out
+typedef struct BlockHeader {
+    size_t size;               // Size of the usable data block
+    int is_free;               // 1 if block is available, 0 if in use
+    struct BlockHeader* next;  // Pointer to the next block in our system
+} BlockHeader;
+
+// The size of our header rounded to a clean 8-byte multiple
+#define HEADER_SIZE ALIGN(sizeof(BlockHeader))
+
+// Global pointer tracking the start of our memory arena
+static BlockHeader* global_head = NULL;
+
+/**
+ * Traverses the managed heap to find a free block using the First-Fit algorithm.
+ * Uses a SINGLE POINTER to scan the list.
+ */
+static BlockHeader* find_free_block(BlockHeader** last, size_t size) {
+    BlockHeader* current = global_head;
+    while (current && !(current->is_free && current->size >= size)) {
+        *last = current;
+        current = current->next;
+    }
+    return current;
+}
+
+/**
+ * Requests raw memory from the OS kernel using sbrk().
+ * Uses POINTER CASTING to construct our meta structures on raw bytes.
+ */
+static BlockHeader* request_space(BlockHeader* last, size_t size) {
+    BlockHeader* block;
+    // Request exact size of metadata header + requested space
+    block = (BlockHeader*)sbrk(0);
+    void* request = sbrk(size + HEADER_SIZE);
+    
+    if (request == (void*)-1) {
+        return NULL; // OS failed to allocate memory
+    }
+    
+    // Initialize our newly constructed block metadata
+    if (last) { 
+        last->next = block;
+    }
+    block->size = size;
+    block->next = NULL;
+    block->is_free = 0;
+    return block;
+}
+
+/**
+ * Custom Malloc Implementation
+ * Returns a generic void* pointer to the user, masking the metadata header.
+ */
+void* my_malloc(size_t size) {
+    if (size <= 0) {
+        return NULL;
+    }
+    
+    size_t aligned_size = ALIGN(size);
+    BlockHeader* block;
+    
+    if (global_head == NULL) {
+        // First allocation request ever made
+        block = request_space(NULL, aligned_size);
+        if (!block) return NULL;
+        global_head = block;
+    } else {
+        BlockHeader* last = global_head;
+        block = find_free_block(&last, aligned_size);
+        if (block == NULL) {
+            // No free block was large enough, request a new chunk from OS
+            block = request_space(last, aligned_size);
+            if (!block) return NULL;
+        } else {
+            // Found a reusable block! Re-use it.
+            block->is_free = 0;
+        }
+    }
+    
+    // ADVANCED POINTER ARITHMETIC:
+    // Move the pointer forward by the size of the header, then return the address to the user.
+    // The user has no idea the header metadata exists right before this address.
+    return (void*)(block + 1);
+}
+
+/**
+ * Custom Free Implementation
+ * Reclaims memory by flipping metadata tags instead of destructive deletions.
+ */
+void my_free(void* ptr) {
+    if (!ptr) {
+        return;
+    }
+    
+    // ADVANCED POINTER ARITHMETIC:
+    // Cast user pointer to our struct pointer, then shift BACKWARDS by 1 block
+    // to instantly target the hidden metadata header.
+    BlockHeader* block = (BlockHeader*)ptr - 1;
+    block->is_free = 1;
+    
+    printf("[Free] Recycled chunk at address: %p (%zu bytes freed)\n", ptr, block->size);
+}
+
+/**
+ * Diagnostic Utility: Prints the current layout of your custom heap
+ */
+void print_heap_map() {
+    BlockHeader* current = global_head;
+    printf("\n--- CURRENT METADATA HEAP MAP ---\n");
+    if (!current) printf("(Heap is empty)\n");
+    while (current) {
+        printf("Block Address: %p | Payload Size: %zu | Status: %s | Next: %p\n",
+               (void*)(current + 1), current->size, 
+               current->is_free ? "FREE" : "IN_USE", (void*)current->next);
+        current = current->next;
+    }
+    printf("---------------------------------\n\n");
+}
+
+int main() {
+    printf("=== Starting Custom Memory Allocator Demo ===\n");
+    
+    print_heap_map();
+    
+    // 1. Allocate strings and integers dynamically using our tool
+    printf("[Malloc] Allocating memory for string 'A'...\n");
+    char* str_a = (char*)my_malloc(32 * sizeof(char));
+    strcpy(str_a, "GitHub Portfolio Project");
+    
+    printf("[Malloc] Allocating memory for string 'B'...\n");
+    char* str_b = (char*)my_malloc(64 * sizeof(char));
+    strcpy(str_b, "C Pointers Mastery");
+    
+    print_heap_map();
+    
+    // 2. Free string A to test reusability optimization
+    my_free(str_a);
+    print_heap_map();
+    
+    // 3. Allocate a small block again to prove it reuses block A instead of asking the OS
+    printf("[Malloc] Allocating memory for new short string 'C'...\n");
+    char* str_c = (char*)my_malloc(16 * sizeof(char));
+    strcpy(str_c, "Reused Block!");
+    
+    print_heap_map();
+    
+    // Cleanup remaining allocations
+    my_free(str_b);
+    my_free(str_c);
+    
+    return 0;
+}
