@@ -1,0 +1,91 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// 1. Defining a structure for a Student node
+typedef struct Student {
+    int id;
+    char name[50];
+    struct Student* next;  // Pointer to the next student node
+} Student;
+
+// 2. Function to add a student to the front of the list
+// Uses a DOUBLE POINTER (Student**) so we can change the 'head' pointer in main
+void insertStudent(Student** headRef, int id, const char* name) {
+    // Dynamically allocate memory for a new student node using malloc()
+    Student* newStudent = (Student*)malloc(sizeof(Student));
+    
+    if (newStudent == NULL) {
+        printf("Memory allocation failed!\n");
+        return;
+    }
+    
+    // Assign values using the arrow operator (->)
+    newStudent->id = id;
+    strcpy(newStudent->name, name);
+    
+    // Set the next pointer of the new node to point to the current head
+    newStudent->next = *headRef; 
+    
+    // Update the actual head pointer in main to look at this new node
+    *headRef = newStudent;
+    
+    printf("Successfully added: %s (ID: %d)\n", name, id);
+}
+
+// 3. Function to print all students in the system
+// Uses a SINGLE POINTER (Student*) to traverse the list
+void displayStudents(Student* head) {
+    if (head == NULL) {
+        printf("\nThe list is currently empty.\n");
+        return;
+    }
+    
+    printf("\n--- Student Database Records ---\n");
+    Student* current = head; // 'current' is a temporary traversal pointer
+    
+    while (current != NULL) {
+        // Access data through the pointer
+        printf("ID: %d | Name: %s | Memory Address: %p\n", current->id, current->name, (void*)current);
+        
+        // Move to the next student using the next pointer
+        current = current->next;
+    }
+    printf("--------------------------------\n");
+}
+
+// 4. Function to clean up memory when the program finishes
+// Crucial to prevent memory leaks by freeing dynamically allocated memory
+void freeDatabase(Student** headRef) {
+    Student* current = *headRef;
+    Student* nextNode;
+    
+    while (current != NULL) {
+        nextNode = current->next; // Keep track of the next block before freeing current
+        free(current);            // Release the memory back to the system
+        current = nextNode;       // Advance to next
+    }
+    
+    *headRef = NULL; // Reset head to NULL to avoid a dangling pointer
+    printf("\nDatabase memory successfully cleared.\n");
+}
+
+int main() {
+    // Initialize the head of our list to NULL (an empty database)
+    Student* databaseHead = NULL;
+    
+    printf("--- Initializing System ---\n");
+    
+    // Insert entries by passing the address of our head pointer (&databaseHead)
+    insertStudent(&databaseHead, 101, "Alice Smith");
+    insertStudent(&databaseHead, 102, "Bob Jones");
+    insertStudent(&databaseHead, 103, "Charlie Brown");
+    
+    // View the contents of the database
+    displayStudents(databaseHead);
+    
+    // Always clean up dynamic memory before exiting!
+    freeDatabase(&databaseHead);
+    
+    return 0;
+}
