@@ -1,0 +1,49 @@
+#include <stdio.h>
+#include <stdlib.h> // Required for malloc and free
+
+int main() {
+    int size;
+    int* array = NULL; // Initialize pointer to NULL
+
+    // 1. Get the desired array size from the user at runtime
+    printf("Enter the number of elements you want to store: ");
+    if (scanf("%d", &size) != 1 || size <= 0) {
+        printf("Invalid size entered.\n");
+        return 1;
+    }
+
+    // 2. Allocate memory dynamically using malloc()
+    // We calculate total bytes needed: (number of elements) * (size of one integer)
+    array = (int*)malloc(size * sizeof(int));
+
+    // 3. ALWAYS check if the allocation was successful before using the pointer
+    if (array == NULL) {
+        printf("Memory allocation failed! Out of memory.\n");
+        return 1; // Exit the program with an error code
+    }
+
+    printf("\nSuccessfully allocated %lu bytes of memory.\n", size * sizeof(int));
+
+    // 4. Use the allocated memory just like a regular array
+    printf("Enter %d integers:\n", size);
+    for (int i = 0; i < size; i++) {
+        printf("Element %d: ", i + 1);
+        scanf("%d", &array[i]); // Or using pointer syntax: (array + i)
+    }
+
+    // 5. Display the stored elements and their exact memory locations
+    printf("\n--- Stored Data Layout ---\n");
+    for (int i = 0; i < size; i++) {
+        printf("Index %d | Value: %d | Memory Address: %p\n", i, array[i], (void*)&array[i]);
+    }
+    printf("--------------------------\n");
+
+    // 6. ALWAYS release the memory back to the OS when you are done!
+    free(array);
+    
+    // 7. Good practice: Reset the pointer to NULL so you don't accidentally use it again
+    array = NULL; 
+
+    printf("\nMemory successfully freed. Program exiting.\n");
+    return 0;
+}
