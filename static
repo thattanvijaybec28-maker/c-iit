@@ -1,0 +1,47 @@
+#include <stdio.h>
+
+// 1. STATIC GLOBAL VARIABLE
+// This variable is "private" to this file. Other C files cannot access it.
+static int global_file_clicks = 0;
+
+// 2. STATIC FUNCTION
+// This function can only be called inside this file. It is hidden from the rest of the project.
+static void log_system_event() {
+    printf("[System Log] Event registered internally.\n");
+}
+
+// 3. FUNCTION WITH A STATIC LOCAL VARIABLE
+void user_click_handler() {
+    // A regular local variable resets EVERY time the function is called
+    int normal_counter = 0; 
+    
+    // A STATIC local variable is initialized ONLY ONCE. 
+    // It retains its value even after the function finishes executing!
+    static int static_counter = 0; 
+    
+    normal_counter++;
+    static_counter++;
+    global_file_clicks++;
+    
+    printf("Normal Var: %d | Static Var (Remembers Data): %d\n", normal_counter, static_counter);
+}
+
+int main() {
+    printf("=== Starting Static Keyword Demo ===\n\n");
+    
+    printf("--- User Click 1 ---\n");
+    user_click_handler();
+    
+    printf("\n--- User Click 2 ---\n");
+    user_click_handler();
+    
+    printf("\n--- User Click 3 ---\n");
+    user_click_handler();
+    
+    // Calling our internal static function
+    printf("\n--- System Diagnostics ---\n");
+    log_system_event();
+    printf("Total internal file clicks: %d\n", global_file_clicks);
+    
+    return 0;
+}
